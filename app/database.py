@@ -9,17 +9,17 @@ Environment variables:
   TURSO_AUTH_TOKEN    — Turso auth token
 
 When both env vars are set, connects to remote Turso database.
-Otherwise, uses local SQLite file (sevenbet.db) in the project root.
+Otherwise, uses local SQLite file (sevenbet.db in project root or /tmp on Vercel).
 """
 import os
 import uuid
-import json
 from typing import Any
 
 import libsql_experimental as libsql
 
 # ── Connection ────────────────────────────────────────────────────
 _conn = None
+_IS_VERCEL = os.environ.get("VERCEL", "") == "1"
 
 def get_connection():
     global _conn
@@ -30,18 +30,24 @@ def get_connection():
     turso_token = os.environ.get("TURSO_AUTH_TOKEN", "")
 
     if turso_url and turso_token:
-        # Production: connect to Turso
+        # Production: connect to Turso with periodic sync for freshness
         _conn = libsql.connect(
             database=turso_url,
             sync_url=turso_url,
             auth_token=turso_token,
+            sync_interval=5,
         )
+    elif _IS_VERCEL:
+        # On Vercel without Turso creds — in-memory SQLite (ephemeral, read-write)
+        _conn = libsql.connect(":memory:")
     else:
-        # Local dev: use SQLite file
-        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sevenbet.db")
+        # Local dev: use SQLite file in project root
+        db_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "sevenbet.db"
+        )
         _conn = libsql.connect(db_path)
 
-    # Enable WAL mode for better concurrency
     _conn.execute("PRAGMA journal_mode=WAL")
     return _conn
 
