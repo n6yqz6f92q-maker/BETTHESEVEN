@@ -3,12 +3,18 @@
   "outputDirectory": ".",
   "functions": {
     "api/index.py": {
-      "runtime": "python3.9",
-      "maxDuration": 30
+      "runtime": "python3.9"
     }
   },
   "routes": [
-    { "src": "/static/(.*)", "dest": "/api/index" },
-    { "src": "/(.*)", "dest": "/api/index" }
+    {
+      "src": "/static/(.*)",
+      "dest": "/app/static/$1",
+      "headers": { "cache-control": "s-maxage=31536000, immutable" }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
   ]
 }
