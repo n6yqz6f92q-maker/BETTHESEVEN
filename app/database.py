@@ -1,28 +1,65 @@
 """
-Database layer — wraps the team-db CLI for all access.
-Never use sqlite3 directly; always go through this module.
+Database layer — libSQL/Turso driver for Seven Bet.
+
+Uses libsql_experimental (Turso client) for both local development
+and production (Vercel) environments.
+
+Environment variables:
+  TURSO_DATABASE_URL  — Turso remote URL (e.g. libs://my-db.turso.io)
+  TURSO_AUTH_TOKEN    — Turso auth token
+
+When both env vars are set, connects to remote Turso database.
+Otherwise, uses local SQLite file (sevenbet.db) in the project root.
 """
-import json
-import subprocess
+import os
 import uuid
+import json
 from typing import Any
 
-TEAM_DB = "team-db"
+import libsql_experimental as libsql
+
+# ── Connection ────────────────────────────────────────────────────
+_conn = None
+
+def get_connection():
+    global _conn
+    if _conn is not None:
+        return _conn
+
+    turso_url = os.environ.get("TURSO_DATABASE_URL", "")
+    turso_token = os.environ.get("TURSO_AUTH_TOKEN", "")
+
+    if turso_url and turso_token:
+        # Production: connect to Turso
+        _conn = libsql.connect(
+            database=turso_url,
+            sync_url=turso_url,
+            auth_token=turso_token,
+        )
+    else:
+        # Local dev: use SQLite file
+        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sevenbet.db")
+        _conn = libsql.connect(db_path)
+
+    # Enable WAL mode for better concurrency
+    _conn.execute("PRAGMA journal_mode=WAL")
+    return _conn
 
 
 def run(sql: str) -> list[dict[str, Any]]:
-    """Execute a single SQL statement via team-db and return parsed JSON."""
-    result = subprocess.run(
-        [TEAM_DB, sql],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"team-db error: {result.stderr}")
-    if not result.stdout.strip():
-        return []
-    return json.loads(result.stdout)
+    """Execute SQL and return results as list of dicts."""
+    conn = get_connection()
+    cursor = conn.execute(sql)
+
+    # For SELECT queries, return rows as dicts
+    if cursor.description:
+        columns = [col[0] for col in cursor.description]
+        rows = cursor.fetchall()
+        return [dict(zip(columns, row)) for row in rows]
+
+    # For INSERT/UPDATE/DELETE, commit and return empty
+    conn.commit()
+    return []
 
 
 # ── Schema migration ──────────────────────────────────────────────
@@ -106,7 +143,6 @@ def get_user_by_username(username: str) -> dict[str, Any] | None:
 
 
 def update_balance(user_id: str, delta: float) -> dict[str, Any]:
-    """Add delta to user's balance (can be negative for deduction)."""
     run(f"UPDATE app_users SET balance = balance + {delta} WHERE id = '{user_id}'")
     return get_user(user_id)
 
@@ -195,7 +231,6 @@ def get_bet_transactions(bet_id: str) -> list[dict[str, Any]]:
 
 
 def get_user_bets(user_id: str) -> list[dict[str, Any]]:
-    """Get all bets a user has participated in."""
     return run(
         f"SELECT b.* FROM app_bets b "
         f"JOIN app_participants p ON p.bet_id = b.id "
@@ -207,7 +242,6 @@ def get_user_bets(user_id: str) -> list[dict[str, Any]]:
 # ── Platform Stats ────────────────────────────────────────────────
 
 def platform_stats() -> dict[str, Any]:
-    """Return handle (total wagered), rake collected, active bet count."""
     handle = run("SELECT COALESCE(SUM(ABS(amount)), 0) as total FROM app_transactions WHERE type = 'stake'")
     rake = run("SELECT COALESCE(SUM(amount), 0) as total FROM app_transactions WHERE type = 'rake'")
     active = run("SELECT COUNT(*) as cnt FROM app_bets WHERE status IN ('open', 'accepted')")
@@ -223,7 +257,6 @@ def platform_stats() -> dict[str, Any]:
 
 
 def leaderboard(limit: int = 10) -> list[dict[str, Any]]:
-    """Top users by net betting volume (total stake placed)."""
     return run(
         f"SELECT u.id, u.username, "
         f"COALESCE(SUM(CASE WHEN t.type = 'stake' THEN ABS(t.amount) ELSE 0 END), 0) as total_staked, "
