@@ -1,17 +1,10 @@
 {
-  "buildCommand": null,
-  "outputDirectory": ".",
   "functions": {
-    "api/index.py": {
+    "api/**/*.py": {
       "runtime": "python3.11"
     }
   },
   "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/app/static/$1",
-      "headers": { "cache-control": "s-maxage=31536000, immutable" }
-    },
     {
       "src": "/(.*)",
       "dest": "api/index.py"
