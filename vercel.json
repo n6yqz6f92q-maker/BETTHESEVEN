@@ -1,0 +1,14 @@
+{
+  "buildCommand": null,
+  "outputDirectory": ".",
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    { "src": "/static/(.*)", "dest": "/api/index" },
+    { "src": "/(.*)", "dest": "/api/index" }
+  ]
+}
