@@ -1,0 +1,1 @@
+# Seven Bet application package
