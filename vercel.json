@@ -1,11 +1,6 @@
 {
   "buildCommand": null,
   "outputDirectory": ".",
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python@3.0.0"
-    }
-  },
   "routes": [
     {
       "src": "/static/(.*)",
