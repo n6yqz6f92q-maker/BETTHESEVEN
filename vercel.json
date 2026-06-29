@@ -1,11 +1,6 @@
 {
   "buildCommand": null,
   "outputDirectory": ".",
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.12"
-    }
-  },
   "routes": [
     {
       "src": "/static/(.*)",
@@ -14,7 +9,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "api/index.py"
+      "dest": "/api/index"
     }
   ]
 }
