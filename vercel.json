@@ -1,11 +1,15 @@
 {
   "buildCommand": null,
   "outputDirectory": ".",
+  "functions": {
+    "api/index.py": {
+      "runtime": "@vercel/python@3.0.0"
+    }
+  },
   "routes": [
     {
       "src": "/static/(.*)",
-      "dest": "/app/static/$1",
-      "headers": { "cache-control": "s-maxage=31536000, immutable" }
+      "dest": "/api/index"
     },
     {
       "src": "/(.*)",
