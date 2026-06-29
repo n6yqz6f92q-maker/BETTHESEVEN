@@ -37,6 +37,10 @@ def get_connection():
             auth_token=turso_token,
             sync_interval=5,
         )
+    elif os.environ.get("DATABASE_URL", ""):
+        # Generic fallback for sandbox/local (sqlite:///path format)
+        db_path = os.environ["DATABASE_URL"].replace("sqlite:///", "")
+        _conn = libsql.connect(db_path)
     elif _IS_VERCEL:
         # On Vercel without Turso creds — in-memory SQLite (ephemeral, read-write)
         _conn = libsql.connect(":memory:")
@@ -48,7 +52,10 @@ def get_connection():
         )
         _conn = libsql.connect(db_path)
 
-    _conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        _conn.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass
     return _conn
 
 
@@ -63,8 +70,7 @@ def run(sql: str) -> list[dict[str, Any]]:
         rows = cursor.fetchall()
         return [dict(zip(columns, row)) for row in rows]
 
-    # For INSERT/UPDATE/DELETE, commit and return empty
-    conn.commit()
+    # For INSERT/UPDATE/DELETE — libsql auto-commits, return empty
     return []
 
 
