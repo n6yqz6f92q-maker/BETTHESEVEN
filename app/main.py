@@ -20,12 +20,20 @@ from app.routers import users, bets, platform, founders_pass, kyc, geo, admin_co
 
 app = FastAPI(title="Seven Bet", version="1.0.0")
 
-# Run migrations on startup
-db_migrate()
-fp_migrate()
-kyc_migrate()
-geo_migrate()
-concierge_migrate()
+# Run migrations on startup (wrap in try/except to avoid crashing on Vercel)
+import traceback
+for _migrate_fn, _name in [
+    (db_migrate, "db"),
+    (fp_migrate, "founders_pass"),
+    (kyc_migrate, "kyc"),
+    (geo_migrate, "geo"),
+    (concierge_migrate, "concierge"),
+]:
+    try:
+        _migrate_fn()
+    except Exception as _e:
+        print(f"[WARN] Migration '{_name}' failed: {_e}")
+        traceback.print_exc()
 
 # Register API routers
 app.include_router(users.router)
